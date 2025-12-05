@@ -71,8 +71,7 @@ const buildTonePrompt = (text: string, tone: string) => {
     'academic': `আপনি একজন বাংলা ভাষা বিশেষজ্ঞ। নিচের টেক্সটকে **শিক্ষামূলক (Academic)** টোনে রূপান্তরের জন্য বিশ্লেষণ করুন। বৈশিষ্ট্য: পরিভাষা ব্যবহার, তৃতীয় পুরুষ, জটিল বাক্য।`
   };
 
-  const toneName = toneInstructions[tone] ? tone : 'Formal';
-
+  // Fixed: Removed unused 'toneName' variable
   return `${toneInstructions[tone]}
 
 📝 **বিশ্লেষণের জন্য টেক্সট:**
@@ -101,8 +100,7 @@ const buildStylePrompt = (text: string, style: string) => {
     'cholito': `নিচের টেক্সটকে **চলিত রীতি**তে রূপান্তরের জন্য বিশ্লেষণ করুন। ক্রিয়াপদ (তেছি->ছি, ইল->ল), সর্বনাম (তাহার->তার) এবং অব্যয় পরিবর্তন করুন।`
   };
 
-  const targetStyle = style === 'sadhu' ? 'সাধু' : 'চলিত';
-
+  // Fixed: Removed unused 'targetStyle' variable
   return `${styleInstructions[style]}
 
 ═══════════════════════════════════════
@@ -133,7 +131,7 @@ const buildStylePrompt = (text: string, style: string) => {
 function App() {
   // Settings State
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-  const [selectedModel, setSelectedModel] = useState(localStorage.getItem('gemini_model') || 'gemini-2.0-flash'); // Default updated to faster model if available
+  const [selectedModel, setSelectedModel] = useState(localStorage.getItem('gemini_model') || 'gemini-2.0-flash');
   
   // UI State
   const [isLoading, setIsLoading] = useState(false);
@@ -340,7 +338,7 @@ function App() {
 Response format (শুধুমাত্র valid JSON):
 {
   "spellingErrors": [
-    {"wrong": "ভুল_শব্দ", "suggestions": ["সঠিক১", "সঠিক২"], "position": 0}
+    {"wrong": "ভুল_শব্দ", "suggestions": ["সঠিক ১", "সঠিক ২"], "position": 0}
   ],
   "languageStyleMixing": {
     "detected": true/false,
