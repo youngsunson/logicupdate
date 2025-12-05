@@ -127,17 +127,21 @@ const buildStylePrompt = (text: string, style: string) => {
 /* -------------------------------------------------------------------------- */
 
 function App() {
+  // Settings State
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [selectedModel, setSelectedModel] = useState(localStorage.getItem('gemini_model') || 'gemini-2.0-flash');
   
+  // UI State
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [activeModal, setActiveModal] = useState<'none' | 'settings' | 'instructions' | 'tone' | 'style'>('none');
   
+  // Selection State
   const [selectedTone, setSelectedTone] = useState('');
   const [selectedStyle, setSelectedStyle] = useState('none');
 
+  // Data State
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [toneSuggestions, setToneSuggestions] = useState<ToneSuggestion[]>([]);
   const [styleSuggestions, setStyleSuggestions] = useState<StyleSuggestion[]>([]);
@@ -152,6 +156,7 @@ function App() {
     // Initialize Office
   }, []);
 
+  /* --- HELPERS --- */
   const showMessage = (text: string, type: 'success' | 'error') => {
     setMessage({ text, type });
     setTimeout(() => setMessage(null), 3000);
@@ -164,23 +169,17 @@ function App() {
     setActiveModal('none');
   };
 
-  /* --- IMPROVED TEXT EXTRACTION (MAJOR FIX) --- */
+  /* --- WORD API INTERACTION --- */
   const getTextFromWord = async (): Promise<string> => {
     return new Promise((resolve) => {
       Word.run(async (context) => {
-        // Instead of reading body.text directly, read paragraphs
-        const paragraphs = context.document.body.paragraphs;
-        paragraphs.load('text');
+        const body = context.document.body;
+        body.load('text');
         await context.sync();
-
-        // Join paragraphs with explicit newline characters
-        // This ensures AI sees the structure clearly
-        const fullText = paragraphs.items
-          .map(p => p.text.trimEnd()) // Remove trailing spaces from para
-          .filter(text => text.length > 0) // Optional: Remove empty lines if you want, or keep them
-          .join('\n'); 
-          
-        resolve(fullText);
+        // FIX: Normalize newlines. Word sometimes returns \r, \n, or \r\n.
+        // Replacing all with \n helps the AI understand line structure.
+        const cleanText = body.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        resolve(cleanText);
       }).catch((error) => {
         console.error('Error reading Word:', error);
         resolve('');
@@ -189,10 +188,13 @@ function App() {
   };
 
   const highlightInWord = async (text: string, color: string) => {
+    // Clean up text to ensure better matching
     const cleanText = text.trim();
     if (!cleanText) return;
 
     await Word.run(async (context) => {
+      // matchWholeWord: false ensures we find words even with attached punctuation
+      // ignoreSpace: true helps match even if spaces slightly differ
       const results = context.document.body.search(cleanText, { matchCase: false, matchWholeWord: false, ignoreSpace: true });
       results.load('font');
       await context.sync();
@@ -206,14 +208,19 @@ function App() {
 
   const replaceInWord = async (oldText: string, newText: string) => {
     const cleanOldText = oldText.trim();
+    
     let success = false;
 
     await Word.run(async (context) => {
+      // Search with ignoreSpace: true to handle minor whitespace differences
       const results = context.document.body.search(cleanOldText, { matchCase: true, matchWholeWord: false, ignoreSpace: true });
       results.load('items');
       await context.sync();
 
       if (results.items.length > 0) {
+        // Only replace the FIRST occurrence found to avoid replacing same word elsewhere incorrectly
+        // or iterate if we want to replace all. Usually replacing first context match is safer for "Correction" cards.
+        // But for safety in this UI, let's replace all matches of that specific error phrase.
         results.items.forEach((item) => {
           item.insertText(newText, Word.InsertLocation.replace);
           item.font.highlightColor = "None";
@@ -224,6 +231,7 @@ function App() {
     }).catch(console.error);
 
     if (success) {
+      // Remove from UI lists immediately
       setCorrections(prev => prev.filter(c => c.wrong !== oldText));
       setToneSuggestions(prev => prev.filter(t => t.current !== oldText));
       setStyleSuggestions(prev => prev.filter(s => s.current !== oldText));
@@ -238,6 +246,7 @@ function App() {
       showMessage(`সংশোধিত হয়েছে ✓`, 'success');
     } else {
       showMessage(`শব্দটি ডকুমেন্টে খুঁজে পাওয়া যায়নি।`, 'error');
+      // Clean up UI anyway if it's a ghost error
       setCorrections(prev => prev.filter(c => c.wrong !== oldText));
       setPunctuationIssues(prev => prev.filter(p => p.currentSentence !== oldText));
     }
@@ -267,6 +276,7 @@ function App() {
     setIsLoading(true);
     setLoadingText('বিশ্লেষণ করা হচ্ছে...');
     
+    // Clear previous results
     setCorrections([]);
     setToneSuggestions([]);
     setStyleSuggestions([]);
@@ -278,19 +288,23 @@ function App() {
     await clearHighlights();
 
     try {
+      // 1. Main Analysis
       setLoadingText('বানান ও ব্যাকরণ দেখা হচ্ছে...');
       await performMainCheck(text);
 
+      // 2. Tone Analysis
       if (selectedTone) {
         setLoadingText('টোন বিশ্লেষণ...');
         await performToneCheck(text);
       }
 
+      // 3. Style Analysis
       if (selectedStyle !== 'none') {
         setLoadingText('ভাষারীতি বিশ্লেষণ...');
         await performStyleCheck(text);
       }
 
+      // 4. Content Analysis
       setLoadingText('সারাংশ তৈরি হচ্ছে...');
       await analyzeContent(text);
 
@@ -303,7 +317,6 @@ function App() {
     }
   };
 
-  /* --- IMPROVED PROMPT FOR LINE BREAKS --- */
   const performMainCheck = async (text: string) => {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
@@ -313,26 +326,26 @@ function App() {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `আপনি একজন দক্ষ বাংলা প্রুফরিডার। নিচের টেক্সটটি বিশ্লেষণ করুন।
+              text: `আপনি একজন দক্ষ বাংলা প্রুফরিডার। নিচের টেক্সটটি খুঁটিয়ে দেখুন।
 
 টেক্সট:
 """
 ${text}
 """
 
-⚠️ **কঠোর নির্দেশনাবলী:**
+⚠️ **কঠোর নির্দেশনাবলী (Strict Instructions):**
 
-১. **বানান ভুল:** শুধুমাত্র নিশ্চিত ভুল বানান ধরুন।
-২. **বিরাম চিহ্ন ও লাইন ব্রেক:** 
-   - টেক্সটের লাইন ব্রেক (Newlines) খেয়াল রাখুন।
-   - **শিরোনাম (Heading), কবিতার লাইন, বা তালিকার আইটেম**-এর শেষে দাড়ি/কমা না থাকলে সেটাকে ভুল ধরবেন না।
-   - আলাদা প্যারাগ্রাফ বা লাইনকে জোর করে এক করবেন না।
-   - শুধুমাত্র যদি একটি দীর্ঘ বাক্যের মাঝখানে যতিচিহ্ন প্রয়োজন হয় বা বাক্যটি অসম্পূর্ণ মনে হয়, তবেই ধরুন।
-৩. **মিশ্রণ:** সাধু ও চলিত রীতির মিশ্রণ আছে কিনা দেখুন।
+১. **বানান ভুল:** শুধুমাত্র নিশ্চিত ভুল বানান ধরুন (যুক্তাক্ষর, ণত্ব-ষত্ব)।
+২. **বিরাম চিহ্ন ও প্যারাগ্রাফ:** 
+   - টেক্সটের **লাইন ব্রেক (Newlines)** খেয়াল রাখুন।
+   - আলাদা প্যারাগ্রাফকে জোর করে এক করবেন না।
+   - **শিরোনাম, কবিতার লাইন, বা তালিকার আইটেম**-এর শেষে দাড়ি/কমা না থাকলে সেটাকে ভুল ধরবেন না।
+   - শুধুমাত্র পূর্ণ বাক্যের শেষে যতিচিহ্ন না থাকলে সেটা ধরুন।
+৩. **ভাষা মিশ্রণ:** সাধু ও চলিত রীতির মিশ্রণ আছে কিনা দেখুন।
 
-⚠️ **Output Rules:**
+⚠️ **JSON Output Rules:**
 - **spellingErrors:** "wrong" ফিল্ডে শব্দটি হুবহু ইনপুট থেকে কপি করবেন।
-- **punctuationIssues:** "currentSentence" ফিল্ডে ইনপুটের বাক্য বা লাইনটি হুবহু কপি করবেন।
+- **punctuationIssues:** "currentSentence" ফিল্ডে ইনপুটের বাক্যটি হুবহু কপি করবেন (কোনো শব্দ যোগ/বियोग করবেন না)। একাধিক লাইন মার্জ করবেন না।
 
 Response format (শুধুমাত্র valid JSON):
 {
@@ -374,6 +387,7 @@ Response format (শুধুমাত্র valid JSON):
         setPunctuationIssues(result.punctuationIssues || []);
         setEuphonyImprovements(result.euphonyImprovements || []);
 
+        // Update stats
         const words = text.trim().split(/\s+/).length;
         const errors = (result.spellingErrors?.length || 0);
         setStats({
@@ -382,6 +396,7 @@ Response format (শুধুমাত্র valid JSON):
           accuracy: words > 0 ? Math.round(((words - errors) / words) * 100) : 100
         });
 
+        // Highlight Errors (Red)
         for (const err of (result.spellingErrors || [])) {
           await highlightInWord(err.wrong, '#fee2e2');
         }
@@ -473,6 +488,7 @@ Response format (valid JSON):
     }
   };
 
+  /* --- RENDER HELPERS --- */
   const getToneName = (t: string) => {
     const map: Record<string, string> = {
       'formal': '📋 আনুষ্ঠানিক', 'informal': '💬 অনানুষ্ঠানিক', 'professional': '💼 পেশাদার',
@@ -482,6 +498,7 @@ Response format (valid JSON):
     return map[t] || t;
   };
 
+  /* --- UI RENDER --- */
   return (
     <div className="app-container">
       {/* Header & Toolbar */}
@@ -551,6 +568,7 @@ Response format (valid JSON):
           </div>
         )}
 
+        {/* Empty State */}
         {!isLoading && stats.totalWords === 0 && !message && (
           <div className="empty-state">
             <div style={{fontSize: '40px', marginBottom: '12px'}}>✨</div>
@@ -559,6 +577,7 @@ Response format (valid JSON):
           </div>
         )}
 
+        {/* Stats */}
         {stats.totalWords > 0 && (
           <div className="stats-grid">
             <div className="stat-card">
@@ -576,6 +595,7 @@ Response format (valid JSON):
           </div>
         )}
 
+        {/* Content Analysis */}
         {contentAnalysis && (
           <>
             <div className="analysis-card content-analysis">
@@ -597,6 +617,7 @@ Response format (valid JSON):
           </>
         )}
 
+        {/* Spelling Errors */}
         {corrections.length > 0 && (
           <>
             <div className="section-header">
@@ -616,6 +637,7 @@ Response format (valid JSON):
           </>
         )}
 
+        {/* Tone Suggestions */}
         {toneSuggestions.length > 0 && (
           <>
             <div className="section-header">
@@ -634,6 +656,7 @@ Response format (valid JSON):
           </>
         )}
 
+        {/* Style Suggestions */}
         {styleSuggestions.length > 0 && (
           <>
             <div className="section-header">
@@ -660,6 +683,7 @@ Response format (valid JSON):
           </>
         )}
 
+        {/* Auto Style Mixing Detection */}
         {languageStyleMixing?.detected && selectedStyle === 'none' && (
           <>
             <div className="section-header">
@@ -686,6 +710,7 @@ Response format (valid JSON):
           </>
         )}
 
+        {/* Punctuation */}
         {punctuationIssues.length > 0 && (
           <>
             <div className="section-header">
@@ -696,6 +721,7 @@ Response format (valid JSON):
               <div key={i} className="suggestion-card orange-card" onMouseEnter={() => highlightInWord(p.currentSentence, '#ffedd5')}>
                 <div className="wrong-word" style={{color: '#ea580c'}}>⚠️ {p.issue}</div>
                 <div className="reason">{p.explanation}</div>
+                {/* Note: Using currentSentence as the key for replacement finding */}
                 <button onClick={() => replaceInWord(p.currentSentence, p.correctedSentence)} className="suggestion-btn orange-btn">
                   ✓ {p.correctedSentence}
                 </button>
@@ -704,6 +730,7 @@ Response format (valid JSON):
           </>
         )}
         
+         {/* Euphony */}
         {euphonyImprovements.length > 0 && (
           <>
             <div className="section-header">
@@ -725,6 +752,7 @@ Response format (valid JSON):
         )}
       </div>
 
+      {/* Footer */}
       <div className="footer">
         <p style={{fontSize:'15px', color:'rgba(255,255,255,0.9)', fontWeight:600}}>Developed by: হিমাদ্রি বিশ্বাস</p>
         <p style={{fontSize:'12px', color:'rgba(255,255,255,0.7)'}}>☎ +880 9696 196566</p>
@@ -732,6 +760,7 @@ Response format (valid JSON):
 
       {/* --- MODALS --- */}
       
+      {/* Settings Modal */}
       {activeModal === 'settings' && (
         <div className="modal-overlay" onClick={() => setActiveModal('none')}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -759,6 +788,7 @@ Response format (valid JSON):
         </div>
       )}
 
+      {/* Instructions Modal */}
       {activeModal === 'instructions' && (
         <div className="modal-overlay" onClick={() => setActiveModal('none')}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -783,6 +813,7 @@ Response format (valid JSON):
         </div>
       )}
 
+      {/* Tone Modal */}
       {activeModal === 'tone' && (
         <div className="modal-overlay" onClick={() => setActiveModal('none')}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -816,6 +847,7 @@ Response format (valid JSON):
         </div>
       )}
 
+      {/* Style Modal */}
       {activeModal === 'style' && (
         <div className="modal-overlay" onClick={() => setActiveModal('none')}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
