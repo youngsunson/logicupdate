@@ -176,8 +176,6 @@ function App() {
         const body = context.document.body;
         body.load('text');
         await context.sync();
-        // FIX: Normalize newlines. Word sometimes returns \r, \n, or \r\n.
-        // Replacing all with \n helps the AI understand line structure.
         const cleanText = body.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
         resolve(cleanText);
       }).catch((error) => {
@@ -188,13 +186,10 @@ function App() {
   };
 
   const highlightInWord = async (text: string, color: string) => {
-    // Clean up text to ensure better matching
     const cleanText = text.trim();
     if (!cleanText) return;
 
     await Word.run(async (context) => {
-      // matchWholeWord: false ensures we find words even with attached punctuation
-      // ignoreSpace: true helps match even if spaces slightly differ
       const results = context.document.body.search(cleanText, { matchCase: false, matchWholeWord: false, ignoreSpace: true });
       results.load('font');
       await context.sync();
@@ -218,9 +213,6 @@ function App() {
       await context.sync();
 
       if (results.items.length > 0) {
-        // Only replace the FIRST occurrence found to avoid replacing same word elsewhere incorrectly
-        // or iterate if we want to replace all. Usually replacing first context match is safer for "Correction" cards.
-        // But for safety in this UI, let's replace all matches of that specific error phrase.
         results.items.forEach((item) => {
           item.insertText(newText, Word.InsertLocation.replace);
           item.font.highlightColor = "None";
@@ -231,24 +223,38 @@ function App() {
     }).catch(console.error);
 
     if (success) {
-      // Remove from UI lists immediately
-      setCorrections(prev => prev.filter(c => c.wrong !== oldText));
-      setToneSuggestions(prev => prev.filter(t => t.current !== oldText));
-      setStyleSuggestions(prev => prev.filter(s => s.current !== oldText));
-      setEuphonyImprovements(prev => prev.filter(e => e.current !== oldText));
-      setPunctuationIssues(prev => prev.filter(p => p.currentSentence !== oldText)); 
+      // Helper function to compare strings reliably (ignoring whitespace differences)
+      const isNotMatch = (textToCheck: string) => textToCheck.trim() !== cleanOldText;
+
+      // Remove from UI lists immediately using the trim comparison
+      setCorrections(prev => prev.filter(c => isNotMatch(c.wrong)));
+      setToneSuggestions(prev => prev.filter(t => isNotMatch(t.current)));
+      setStyleSuggestions(prev => prev.filter(s => isNotMatch(s.current)));
+      setEuphonyImprovements(prev => prev.filter(e => isNotMatch(e.current)));
+      setPunctuationIssues(prev => prev.filter(p => isNotMatch(p.currentSentence))); 
       
-      if (languageStyleMixing?.corrections) {
-        const filtered = languageStyleMixing.corrections.filter(c => c.current !== oldText);
-        setLanguageStyleMixing(filtered.length ? { ...languageStyleMixing, corrections: filtered } : null);
-      }
+      // Update Language Style Mixing using functional state update to prevent stale closures
+      setLanguageStyleMixing(prev => {
+        if (!prev || !prev.corrections) return prev;
+        
+        const filtered = prev.corrections.filter(c => isNotMatch(c.current));
+        
+        // If corrections remain, update the array. If empty, you can either keep the analysis or clear it.
+        // Here we keep the main analysis but update the corrections list.
+        if (filtered.length > 0) {
+          return { ...prev, corrections: filtered };
+        } else {
+          // If no corrections left, remove the style mixing warning entirely
+          return null; 
+        }
+      });
 
       showMessage(`সংশোধিত হয়েছে ✓`, 'success');
     } else {
       showMessage(`শব্দটি ডকুমেন্টে খুঁজে পাওয়া যায়নি।`, 'error');
-      // Clean up UI anyway if it's a ghost error
-      setCorrections(prev => prev.filter(c => c.wrong !== oldText));
-      setPunctuationIssues(prev => prev.filter(p => p.currentSentence !== oldText));
+      
+      // Optional: Clean up UI anyway if it's a ghost error (failed to find but user wants to remove)
+      // setCorrections(prev => prev.filter(c => c.wrong.trim() !== cleanOldText));
     }
   };
 
