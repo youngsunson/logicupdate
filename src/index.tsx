@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 
@@ -187,7 +187,7 @@ const buildTonePrompt = (text: string, tone: string) => {
    - জনাব → ভাই/আপু/দাদা/দিদি
    - শ্রদ্ধেয় → প্রিয়
 
-২. **আবেগপূর���ণ শব্দ:**
+২. **আবেগপূর্ণ শব্দ:**
    - ভালো → দারুণ! / অসাধারণ! / চমৎকার!
    - ধন্যবাদ → অনেক ধন্যবাদ! / থ্যাংকস!
    - হ্যাঁ → অবশ্যই! / জি জি! / হ্যাঁ হ্যাঁ!
@@ -478,7 +478,7 @@ const buildStylePrompt = (text: string, style: string) => {
 |------|------|
 | তার | তাহার |
 | তাকে | তাহাকে |
-| তাদের | তাহাদের |
+| তাহাদের | তাহাদের |
 | তাদেরকে | তাহাদিগকে |
 | যা | যাহা |
 | যে | যে/যিনি |
@@ -633,7 +633,7 @@ const buildStylePrompt = (text: string, style: string) => {
 |------|------|
 | তাহার | তার |
 | তাহাকে | তাকে |
-| তাহাদের | তাদের |
+| তাহাদের | তাহাদের |
 | তাহাদিগকে | তাদেরকে |
 | যাহা | যা |
 | যাহাকে | যাকে |
@@ -748,9 +748,7 @@ function App() {
   const [stats, setStats] = useState({ totalWords: 0, errorCount: 0, accuracy: 100 });
 
   useEffect(() => {
-    Office.onReady(() => {
-      console.log('Office Ready');
-    });
+    // Initialize Office
   }, []);
 
   /* --- HELPERS --- */
@@ -804,7 +802,7 @@ function App() {
 
       results.items.forEach((item) => {
         item.insertText(newText, Word.InsertLocation.replace);
-        item.font.highlightColor = null; // Remove highlight
+        item.font.highlightColor = "None"; // Fixed TS Error (using string "None" instead of null)
       });
       await context.sync();
     }).catch(console.error);
@@ -825,7 +823,7 @@ function App() {
 
   const clearHighlights = async () => {
     await Word.run(async (context) => {
-      context.document.body.font.highlightColor = null;
+      context.document.body.font.highlightColor = "None"; // Fixed TS Error (using string "None" instead of null)
       await context.sync();
     }).catch(console.error);
   };
@@ -1087,7 +1085,7 @@ Response format (শুধুমাত্র valid JSON):
         </div>
       </div>
 
-      {/* Selection Display (Optional, added to match HTML logic if user wants visible feedback) */}
+      {/* Selection Display */}
       {(selectedTone || selectedStyle !== 'none') && (
         <div className="selection-display">
           {selectedTone && (
@@ -1155,16 +1153,16 @@ Response format (শুধুমাত্র valid JSON):
               <h3>📋 {contentAnalysis.contentType}</h3>
               {contentAnalysis.description && <p>{contentAnalysis.description}</p>}
             </div>
-            {contentAnalysis.missingElements?.length! > 0 && (
+            {contentAnalysis.missingElements && contentAnalysis.missingElements.length > 0 && (
               <div className="analysis-card missing-analysis">
                 <h3 style={{color:'#78350f'}}>⚠️ যা যোগ করুন</h3>
-                <ul>{contentAnalysis.missingElements?.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                <ul>{contentAnalysis.missingElements.map((e, i) => <li key={i}>{e}</li>)}</ul>
               </div>
             )}
-             {contentAnalysis.suggestions?.length! > 0 && (
+             {contentAnalysis.suggestions && contentAnalysis.suggestions.length > 0 && (
               <div className="analysis-card suggestion-analysis">
                 <h3 style={{color:'#115e59'}}>✨ পরামর্শ</h3>
-                <ul>{contentAnalysis.suggestions?.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                <ul>{contentAnalysis.suggestions.map((e, i) => <li key={i}>{e}</li>)}</ul>
               </div>
             )}
           </>
@@ -1306,8 +1304,8 @@ Response format (শুধুমাত্র valid JSON):
 
       {/* Footer */}
       <div className="footer">
-        <p style={{fontSize:'15px', color:'rgba(0,0,0,0.7)', fontWeight:600}}>Developed by: হিমাদ্রি বিশ্বাস</p>
-        <p style={{fontSize:'12px', color:'rgba(0,0,0,0.5)'}}>📞 +880 9696 196566</p>
+        <p style={{fontSize:'15px', color:'rgba(255,255,255,0.9)', fontWeight:600}}>Developed by: হিমাদ্রি বিশ্বাস</p>
+        <p style={{fontSize:'12px', color:'rgba(255,255,255,0.7)'}}>📞 +880 9696 196566</p>
       </div>
 
       {/* --- MODALS --- */}
@@ -1342,7 +1340,7 @@ Response format (শুধুমাত্র valid JSON):
         </div>
       )}
 
-      {/* Instructions Modal - EXACTLY FROM HTML */}
+      {/* Instructions Modal */}
       {activeModal === 'instructions' && (
         <div className="modal-overlay" onClick={() => setActiveModal('none')}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1447,4 +1445,13 @@ Response format (শুধুমাত্র valid JSON):
   );
 }
 
-export default App;
+// ----------------------------------------------------------------------
+// INITIALIZE OFFICE & REACT ENTRY POINT (Fixes TS6133)
+// ----------------------------------------------------------------------
+Office.onReady(() => {
+  const rootElement = document.getElementById('root');
+  if (rootElement) {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<App />);
+  }
+});
