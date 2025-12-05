@@ -87,7 +87,7 @@ export default defineConfig({
     }) : undefined,
   ].filter(Boolean), // undefined প্লাগইনগুলি ফিল্টার করে বাদ দেওয়া হয়েছে (যখন লাইসেন্স লোড হয় না)
 
-  base: '/version3/', // GitHub Pages base path
+  base: '/logicupdate/', // GitHub Pages base path
   root: '.',
   build: {
     outDir: 'dist',
