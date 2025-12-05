@@ -66,7 +66,6 @@
     </Hosts>
     <Resources>
       <bt:Images>
-<<<<<<< HEAD
         <bt:Image id="Icon.16x16" DefaultValue="https://youngsunson.github.io/logicupdate/assets/icon-16.png"/>
         <bt:Image id="Icon.32x32" DefaultValue="https://youngsunson.github.io/logicupdate/assets/icon-32.png"/>
         <bt:Image id="Icon.80x80" DefaultValue="https://youngsunson.github.io/logicupdate/assets/icon-80.png"/>
@@ -74,15 +73,6 @@
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://youngsunson.github.io/logicupdate"/>
         <bt:Url id="Taskpane.Url" DefaultValue="https://youngsunson.github.io/logicupdate/index.html"/>
-=======
-        <bt:Image id="Icon.16x16" DefaultValue="https://youngsunson.github.io/bengali-spell-check/assets/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://youngsunson.github.io/bengali-spell-check/assets/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://youngsunson.github.io/bengali-spell-check/assets/icon-80.png"/>
-      </bt:Images>
-      <bt:Urls>
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://youngsunson.github.io/bengali-spell-check"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://youngsunson.github.io/bengali-spell-check/index.html"/>
->>>>>>> 33e9d5d428f4a0b8861a6415a60bd1c2f8c08de9
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="ভাষা মিত্র চালু হয়েছে!"/>
