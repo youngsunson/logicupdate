@@ -1,0 +1,36 @@
+{
+  "name": "ভাষা মিত্র",
+  "version": "1.0.0",
+  "description": "বাংলা বানান পরীক্ষক এবং ব্যাকরণ সহায়ক",
+  "author": "Himadri Biswas",
+<<<<<<< HEAD
+  "homepage": "https://youngsunson.github.io/version3/index.html",
+=======
+  "homepage": "https://youngsunson.github.io/bengali-spell-check/index.html",
+>>>>>>> 33e9d5d428f4a0b8861a6415a60bd1c2f8c08de9
+  "supportedOfficeApps": [
+    "Word"
+  ],
+  "features": [
+    "বানান পরীক্ষা",
+    "ভাব/টোন বিশ্লেষণ",
+    "সাধু-চলিত ভাষা মিশ্রণ সনাক্তকরণ",
+    "বিরাম চিহ্ন পরামর্শ",
+    "শ্রুতিমধুরতা উন্নতি",
+    "লেখার ধরন বিশ্লেষণ",
+    "অনুপস্থিত উপাদান চিহ্নিতকরণ",
+    "উন্নতির পরামর্শ"
+  ],
+  "aiModel": "Google Gemini",
+  "supportedModels": [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash-exp",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash",
+    "gemini-pro"
+  ],
+  "languages": [
+    "bn-BD",
+    "en-US"
+  ]
+}
