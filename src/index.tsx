@@ -1065,7 +1065,7 @@ Response format (শুধুমাত্র valid JSON):
 
         <div className="toolbar">
           <button className={`icon-btn ${selectedTone ? 'active' : ''}`} onClick={() => setActiveModal('tone')} title="টোন/ভাব নির্বাচন">
-            <span className="icon">💬</span>
+            <span className="icon">🗣️</span>
             <span className="label">টোন</span>
             {selectedTone && <span className="badge">✓</span>}
           </button>
