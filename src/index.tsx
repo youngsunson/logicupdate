@@ -1305,7 +1305,7 @@ Response format (শুধুমাত্র valid JSON):
       {/* Footer */}
       <div className="footer">
         <p style={{fontSize:'15px', color:'rgba(255,255,255,0.9)', fontWeight:600}}>Developed by: হিমাদ্রি বিশ্বাস</p>
-        <p style={{fontSize:'12px', color:'rgba(255,255,255,0.7)'}}>📞 +880 9696 196566</p>
+        <p style={{fontSize:'12px', color:'rgba(255,255,255,0.7)'}}>☎ +880 9696 196566</p>
       </div>
 
       {/* --- MODALS --- */}
