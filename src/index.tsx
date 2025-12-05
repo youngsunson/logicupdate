@@ -71,7 +71,6 @@ const buildTonePrompt = (text: string, tone: string) => {
     'academic': `আপনি একজন বাংলা ভাষা বিশেষজ্ঞ। নিচের টেক্সটকে **শিক্ষামূলক (Academic)** টোনে রূপান্তরের জন্য বিশ্লেষণ করুন। বৈশিষ্ট্য: পরিভাষা ব্যবহার, তৃতীয় পুরুষ, জটিল বাক্য।`
   };
 
-  // Fixed: Removed unused 'toneName' variable
   return `${toneInstructions[tone]}
 
 📝 **বিশ্লেষণের জন্য টেক্সট:**
@@ -100,7 +99,6 @@ const buildStylePrompt = (text: string, style: string) => {
     'cholito': `নিচের টেক্সটকে **চলিত রীতি**তে রূপান্তরের জন্য বিশ্লেষণ করুন। ক্রিয়াপদ (তেছি->ছি, ইল->ল), সর্বনাম (তাহার->তার) এবং অব্যয় পরিবর্তন করুন।`
   };
 
-  // Fixed: Removed unused 'targetStyle' variable
   return `${styleInstructions[style]}
 
 ═══════════════════════════════════════
@@ -178,7 +176,10 @@ function App() {
         const body = context.document.body;
         body.load('text');
         await context.sync();
-        resolve(body.text);
+        // FIX: Normalize newlines. Word sometimes returns \r, \n, or \r\n.
+        // Replacing all with \n helps the AI understand line structure.
+        const cleanText = body.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        resolve(cleanText);
       }).catch((error) => {
         console.error('Error reading Word:', error);
         resolve('');
@@ -193,7 +194,8 @@ function App() {
 
     await Word.run(async (context) => {
       // matchWholeWord: false ensures we find words even with attached punctuation
-      const results = context.document.body.search(cleanText, { matchCase: false, matchWholeWord: false });
+      // ignoreSpace: true helps match even if spaces slightly differ
+      const results = context.document.body.search(cleanText, { matchCase: false, matchWholeWord: false, ignoreSpace: true });
       results.load('font');
       await context.sync();
       
@@ -205,17 +207,20 @@ function App() {
   };
 
   const replaceInWord = async (oldText: string, newText: string) => {
-    const cleanOldText = oldText.trim(); // Fix: Trim whitespace issues
+    const cleanOldText = oldText.trim();
     
     let success = false;
 
     await Word.run(async (context) => {
-      // Using search for replacement
-      const results = context.document.body.search(cleanOldText, { matchCase: true, matchWholeWord: false });
+      // Search with ignoreSpace: true to handle minor whitespace differences
+      const results = context.document.body.search(cleanOldText, { matchCase: true, matchWholeWord: false, ignoreSpace: true });
       results.load('items');
       await context.sync();
 
       if (results.items.length > 0) {
+        // Only replace the FIRST occurrence found to avoid replacing same word elsewhere incorrectly
+        // or iterate if we want to replace all. Usually replacing first context match is safer for "Correction" cards.
+        // But for safety in this UI, let's replace all matches of that specific error phrase.
         results.items.forEach((item) => {
           item.insertText(newText, Word.InsertLocation.replace);
           item.font.highlightColor = "None";
@@ -226,8 +231,7 @@ function App() {
     }).catch(console.error);
 
     if (success) {
-      // UI Update - Remove fixed item from lists
-      // FIX: Added punctuationIssues filter here to remove card after click
+      // Remove from UI lists immediately
       setCorrections(prev => prev.filter(c => c.wrong !== oldText));
       setToneSuggestions(prev => prev.filter(t => t.current !== oldText));
       setStyleSuggestions(prev => prev.filter(s => s.current !== oldText));
@@ -241,8 +245,8 @@ function App() {
 
       showMessage(`সংশোধিত হয়েছে ✓`, 'success');
     } else {
-      showMessage(`শব্দটি খুঁজে পাওয়া যায়নি। সম্ভবত আগে পরিবর্তন করা হয়েছে।`, 'error');
-      // Force remove from UI even if not found in Doc (to clean up stale state)
+      showMessage(`শব্দটি ডকুমেন্টে খুঁজে পাওয়া যায়নি।`, 'error');
+      // Clean up UI anyway if it's a ghost error
       setCorrections(prev => prev.filter(c => c.wrong !== oldText));
       setPunctuationIssues(prev => prev.filter(p => p.currentSentence !== oldText));
     }
@@ -322,18 +326,26 @@ function App() {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `আপনি একজন দক্ষ বাংলা প্রুফরিডার। নিচের টেক্সটটি খুঁটিয়ে দেখুন এবং ভুলগুলো বের করুন।
+              text: `আপনি একজন দক্ষ বাংলা প্রুফরিডার। নিচের টেক্সটটি খুঁটিয়ে দেখুন।
 
-টেক্সট: "${text}"
+টেক্সট:
+"""
+${text}
+"""
 
-⚠️ **আপনার কাজ:**
-১. **বানান ভুল:** প্রতিটি ভুল বানান ধরুন (যুক্তাক্ষর, ণত্ব-ষত্ব, হ্রস্ব-দীর্ঘ ই/উ কার)।
-২. **বিরাম চিহ্ন:** বাক্যের শেষে দাড়ি, কমা বা প্রশ্নবোধক চিহ্নের ভুল ধরুন।
-৩. **মিশ্রণ:** সাধু ও চলিত রীতির মিশ্রণ থাকলে জানান।
+⚠️ **কঠোর নির্দেশনাবলী (Strict Instructions):**
 
-⚠️ **গুরুত্বপূর্ণ নির্দেশ:**
-- **Spelling Errors:** "wrong" ফিল্ডে শব্দটি ঠিক সেভাবেই লিখবেন যেভাবে ইনপুট টেক্সটে আছে।
-- **Punctuation:** "currentSentence" ফিল্ডে সম্পূর্ণ বাক্যটি ইনপুট থেকে হুবহু কপি করবেন (স্পেস সহ)। কোনো পরিবর্তন করবেন না যাতে এটি replace করা যায়।
+১. **বানান ভুল:** শুধুমাত্র নিশ্চিত ভুল বানান ধরুন (যুক্তাক্ষর, ণত্ব-ষত্ব)।
+২. **বিরাম চিহ্ন ও প্যারাগ্রাফ:** 
+   - টেক্সটের **লাইন ব্রেক (Newlines)** খেয়াল রাখুন।
+   - আলাদা প্যারাগ্রাফকে জোর করে এক করবেন না।
+   - **শিরোনাম, কবিতার লাইন, বা তালিকার আইটেম**-এর শেষে দাড়ি/কমা না থাকলে সেটাকে ভুল ধরবেন না।
+   - শুধুমাত্র পূর্ণ বাক্যের শেষে যতিচিহ্ন না থাকলে সেটা ধরুন।
+৩. **ভাষা মিশ্রণ:** সাধু ও চলিত রীতির মিশ্রণ আছে কিনা দেখুন।
+
+⚠️ **JSON Output Rules:**
+- **spellingErrors:** "wrong" ফিল্ডে শব্দটি হুবহু ইনপুট থেকে কপি করবেন।
+- **punctuationIssues:** "currentSentence" ফিল্ডে ইনপুটের বাক্যটি হুবহু কপি করবেন (কোনো শব্দ যোগ/বियोग করবেন না)। একাধিক লাইন মার্জ করবেন না।
 
 Response format (শুধুমাত্র valid JSON):
 {
@@ -347,7 +359,7 @@ Response format (শুধুমাত্র valid JSON):
     "corrections": [{"current": "শব্দ", "suggestion": "সংশোধন", "type": "সাধু→চলিত"}]
   },
   "punctuationIssues": [
-    {"issue": "সমস্যা", "currentSentence": "ইনপুট থেকে হুবহু বাক্য", "correctedSentence": "সংশোধিত সম্পূর্ণ বাক্য", "explanation": "ব্যাখ্যা"}
+    {"issue": "সমস্যা", "currentSentence": "ইনপুট বাক্য", "correctedSentence": "সংশোধিত বাক্য", "explanation": "ব্যাখ্যা"}
   ],
   "euphonyImprovements": [
     {"current": "শব্দ/বাক্যাংশ", "suggestions": ["বিকল্প"], "reason": "কেন এটি ভালো"}
@@ -360,7 +372,6 @@ Response format (শুধুমাত্র valid JSON):
     );
 
     const data = await response.json();
-    // Handle potential missing content
     if (!data.candidates || !data.candidates[0].content) {
        throw new Error("No content received");
     }
@@ -413,7 +424,6 @@ Response format (শুধুমাত্র valid JSON):
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
       setToneSuggestions(result.toneConversions || []);
-      // Highlight Tone issues (Yellow)
       for (const t of (result.toneConversions || [])) {
         await highlightInWord(t.current, '#fef3c7');
       }
@@ -438,7 +448,6 @@ Response format (শুধুমাত্র valid JSON):
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
       setStyleSuggestions(result.styleConversions || []);
-      // Highlight Style issues (Cyan)
       for (const s of (result.styleConversions || [])) {
         await highlightInWord(s.current, '#ccfbf1');
       }
